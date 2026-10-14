@@ -37,6 +37,14 @@ curl -X POST http://127.0.0.1:8000/api/intents \
   -d '{"task_id":"creator-brief-01","merchant":"https://data.example.org","service":"public-data-brief","amount_cents":30,"currency":"USD","idempotency_key":"creator-brief-call-001"}'
 ```
 
+
+## Celo integration status (read-only)
+
+- `proof.buy_quote.inspect_quote` inspects a real *unpaid* HTTP 402 challenge from the official `gateway.usebuy.ai` domain. It does not sign or pay.
+- `proof.celo_receipt.verify_transfer` verifies a real Celo mainnet ERC-20 transfer by matching the transaction receipt, exact token/payer/pay-to/atomic amount and at least 12 confirmations. It does not establish service delivery or hackathon attribution.
+- No real-money executor is installed. **R50 total live-testing ceiling was approved on 14 October 2026; R0 spent.** No key custody or wallet setup in this service. See [live test gate](docs/LIVE_TEST_GATE.md).
+- Real `buy` integration remains pending an owner-controlled keychain wallet, Loops enrollment/tag and ERC-8004 identity. Do not imply the hackathon is submitted or grant-eligible yet.
+
 ## Limits by design
 
 - **No mainnet wallet integration, user authentication, encryption-at-rest, hosted access control, or production-grade reconciliation.** Only run it on `127.0.0.1`, never expose a public mutable demo without adding authentication/rate limiting.
