@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from .core import Ledger, PolicyError
+from .workflows import creator_brief
 
 ROOT = Path(__file__).resolve().parents[2]
 app = FastAPI(title="Agent Spend Proof", version="0.1.0", description="Simulation only. No funds move.")
@@ -89,3 +90,16 @@ def simulate(intent_id: str, body: Simulation):
 @app.post("/api/intents/{intent_id}/reconcile")
 def reconcile(intent_id: str, body: Reconciliation):
     return invoke(ledger.resolve, intent_id, body.status, body.evidence)
+
+
+class DemoBrief(BaseModel):
+    task_id: str = Field(min_length=2, max_length=64, pattern=r"^[a-zA-Z0-9_.:-]+$")
+    creator_handle: str = Field(min_length=2, max_length=64, pattern=r"^[a-zA-Z0-9_.-]+$")
+    idempotency_key: str = Field(min_length=8, max_length=128, pattern=r"^[a-zA-Z0-9_.:-]+$")
+    demo_outcome: str = Field(default="delivered")
+
+@app.post("/api/demo/creator-brief")
+def demo_creator_brief(body: DemoBrief):
+    if body.demo_outcome not in ("delivered", "missing_delivery", "unknown_settlement"):
+        raise HTTPException(422, "Unsupported demo outcome")
+    return invoke(creator_brief, ledger, body.task_id, body.creator_handle, body.idempotency_key, body.demo_outcome)

@@ -27,6 +27,7 @@ On Windows use `.venv\\Scripts\\activate`. Run `pytest -q` to execute policy/led
 - `POST /api/intents/{id}/simulate` - one-shot demo of delivered, missing delivery, or ambiguous settlement; **never executes a payment**.
 - `POST /api/intents/{id}/reconcile` - add demo evidence and resolve ambiguity. No retry automation.
 - `GET /api/intents/{id}` - full auditable event history.
+- `POST /api/demo/creator-brief` - task-shaped simulated agent workflow using **synthetic sample data**, no paid service or independent provider called.
 
 Example:
 

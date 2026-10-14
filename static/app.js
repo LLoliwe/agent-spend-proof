@@ -58,3 +58,15 @@ $('#intent-form').addEventListener('submit',createIntent);
 $('#refresh').addEventListener('click',reload);
 $('#close-detail').addEventListener('click',()=>$('#detail').close());
 reload();
+
+$('#demo-form').addEventListener('submit',async(e)=>{
+ e.preventDefault();const panel=$('#demo-result');panel.textContent='Running safe local simulation…';
+ try{
+   const id='demo-brief-'+crypto.randomUUID();
+   const res=await api('/demo/creator-brief',{method:'POST',body:JSON.stringify({task_id:id,creator_handle:$('#creator-handle').value,idempotency_key:id+'-call'})});
+   if(!res.result){panel.textContent='Demo task '+res.status+'; inspect the ledger for the recorded decision.';await reload();return}
+   const rows=res.result.channels.map(x=>'<div class="detail-row"><span>'+escapeHtml(x.channel)+'</span><span>'+x.demo_share_pct+'% (synthetic)</span></div>').join('');
+   panel.innerHTML='<div class="sample-report"><strong>SYNTHETIC AGENT REPORT</strong><p>'+escapeHtml(res.result.data_provenance)+'</p>'+rows+'<p>'+escapeHtml(res.result.example_output)+'</p><small>Payment reference: '+escapeHtml(res.intent.tx_hash)+' — SIMULATED, NOT ONCHAIN</small></div>';
+   await reload();
+ }catch(e){panel.textContent='Demo error: '+e.message}
+});
