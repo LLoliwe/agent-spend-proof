@@ -25,8 +25,8 @@ jobs:
             langgraph) PACKAGE='langgraph' ;;
             crewai) PACKAGE='crewai' ;;
             microsoft) PACKAGE='agent-framework-core' ;;
-            openhands) PACKAGE='openhands' ;;
+            openhands) PACKAGE='openhands-sdk' ;;
           esac
           .venv/bin/python -m pip install --disable-pip-version-check --no-input --timeout 20 --retries 1 "$PACKAGE"
-      - name: Verify actual installed package
+      - name: Verify installed package and import
         run: .venv/bin/python pryntor-ops/frameworks/verify_frameworks.py '${{ matrix.framework }}'
