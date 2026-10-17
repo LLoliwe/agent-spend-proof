@@ -1,5 +1,10 @@
 import unittest
-from scripts.verify_gpu_gate import check
+import importlib.util
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("gpu_gate", Path(__file__).resolve().parents[1] / "scripts" / "verify_gpu_gate.py")
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+check = module.check
 
 GOOD = """docs/GPU_COST_GATE.md
 read-only
