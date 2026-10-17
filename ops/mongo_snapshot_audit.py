@@ -14,6 +14,16 @@ from pathlib import Path
 from typing import Any
 
 MAX_INPUT_BYTES = 65536
+
+def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Fail closed on ambiguous JSON object keys."""
+    output: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in output:
+            raise ValueError("duplicate JSON key")
+        output[key] = value
+    return output
+
 REQUIRED_COLLECTIONS = {"runtime_controls", "integration_registry", "jobs", "worker_heartbeats"}
 QUEUE_INDEXES = {"jobs_ready_queue_v1", "jobs_expired_leases_v1"}
 HEARTBEAT_INDEXES = {"worker_heartbeat_by_tenant_v1"}
@@ -57,17 +67,19 @@ def audit(snapshot: dict[str, Any]) -> dict[str, Any]:
     if "worker_heartbeats" in collections and not HEARTBEAT_INDEXES.issubset(_index_names(collections, "worker_heartbeats")):
         findings.append(_fail("HEARTBEAT_INDEX_MISSING", "medium", "Expected heartbeat index not present"))
 
-    net = snapshot.get("network_access", {})
+    net = snapshot.get("network_access")
     if not isinstance(net, dict):
         raise ValueError("network_access must be an object")
-    networks = net.get("cidrs", [])
+    if type(net.get("complete")) is not bool:
+        raise ValueError("network_access.complete must be boolean")
+    networks = net.get("cidrs")
     if not isinstance(networks, list) or any(not isinstance(n, str) for n in networks):
         raise ValueError("network_access.cidrs must be an array of strings")
     broad = False
     for item in networks:
         try:
             parsed_network = ipaddress.ip_network(item, strict=False)
-            broad = broad or parsed_network.prefixlen == 0
+            broad = broad or parsed_network.prefixlen <= 1
         except ValueError as exc:
             raise ValueError("invalid network CIDR entry") from exc
     if broad:
@@ -127,7 +139,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.file.stat().st_size > MAX_INPUT_BYTES:
             raise ValueError("metadata snapshot exceeds size limit")
-        data = json.loads(args.file.read_text(encoding="utf-8"))
+        data = json.loads(args.file.read_text(encoding="utf-8"), object_pairs_hook=_reject_duplicate_json_keys)
         result = audit(data)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         # Deliberately do not print the error contents, which might quote secret data.
