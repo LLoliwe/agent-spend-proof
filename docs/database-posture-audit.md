@@ -16,3 +16,15 @@ Operational and release gates:
 5. Keep zero-new-spend-first and do not treat free-tier code or trial credits as unlimited commercial usage.
 
 Live audit findings, identities, network metadata and production incident records belong only in the authorized company issue tracker, not this public repository.
+
+
+## PR #8 security correction candidate (review-only, not merged)
+
+This proposed change rejects missing `network_access`, missing CIDR lists, missing/invalid completeness booleans and duplicate JSON keys. The very broad CIDR detection now includes both `/0` and `/1` for IPv4 and IPv6. Whether to include `/2` and narrower ranges requires independent policy review. A listing with `complete: false` remains an explicitly incomplete finding, **not** security assurance.
+
+**Two different exit-code contracts** must not be conflated:
+
+- `mongo_snapshot_audit.py` retains its historic diagnostic CLI: exit `0` means parsing and audit completed, or with `--fail-on-critical`, no critical finding was detected; exit `1` means a critical finding when that flag was selected; exit `2` means invalid/unreadable input. Exit `0` is **not** approval for security, worker commissioning, or public release.
+- `mongo_report_review_guard.py` is a **separate proposed** offline classifier of an already redacted audit report. Exit `2` invalid report; `3` blocked by any finding; `4` no findings but independent human review required. It has no approval exit code. The guard never connects to a database and cannot verify the truth or completeness of source metadata.
+
+Reviewer decision checklist: assess the schema for authorized sanitized real-world metadata; agree on the CIDR risk threshold; examine duplicate-key handling, source-redaction, error sanitization and report envelope; explicitly decide whether a separate release command is necessary; verify that synthetic tests and exact-commit CI are not misrepresented as a production security review. Require an **independent GitHub reviewer not identical to the PR author**, and do not merge this proposal or PR #8 until review approval, exact-head CI and human release authorization are recorded. No MongoDB runtime flags, network permissions, databases or cloud services are modified by these files.
