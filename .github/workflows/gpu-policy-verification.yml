@@ -1,0 +1,28 @@
+name: gpu-policy-verification
+on:
+  pull_request:
+    paths:
+      - 'AGENTS.md'
+      - 'docs/GPU_COST_GATE.md'
+      - 'scripts/verify_gpu_gate.py'
+      - 'tests/test_gpu_gate.py'
+      - '.github/workflows/gpu-policy-verification.yml'
+  push:
+    paths:
+      - 'AGENTS.md'
+      - 'docs/GPU_COST_GATE.md'
+      - 'scripts/verify_gpu_gate.py'
+      - 'tests/test_gpu_gate.py'
+      - '.github/workflows/gpu-policy-verification.yml'
+permissions:
+  contents: read
+jobs:
+  offline-policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify policy
+        run: python3 scripts/verify_gpu_gate.py AGENTS.md
+      - name: Unit tests
+        run: python3 -m unittest discover -s tests -p 'test_gpu_gate.py' -v
