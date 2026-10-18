@@ -2,7 +2,7 @@
 """Bounded, credential-free Pryntor public-source monitoring worker.
 No LLM inference, paid API, secrets, external writes, or private company content.
 """
-import datetime, json, os, time, urllib.request, urllib.error, uuid
+import datetime, json, os, urllib.request, urllib.error, uuid
 from pathlib import Path
 
 SOURCES = [
@@ -10,6 +10,33 @@ SOURCES = [
  ("cloudflare_status", "https://www.cloudflarestatus.com/api/v2/status.json"),
  ("railway_status", "https://status.railway.com/api/v2/status.json"),
 ]
+
+
+class StatusPayloadError(ValueError):
+    """Provider response was received but cannot support a status claim."""
+
+    def __init__(self, code):
+        super().__init__(code)
+        self.code = code
+
+
+def parse_status_payload(raw):
+    """Return validated Statuspage-style fields or fail with a stable code."""
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise StatusPayloadError("invalid_json") from exc
+    if not isinstance(data, dict) or not isinstance(data.get("status"), dict):
+        raise StatusPayloadError("unexpected_schema")
+    indicator = data["status"].get("indicator")
+    description = data["status"].get("description")
+    if not isinstance(indicator, str) or not indicator.strip():
+        raise StatusPayloadError("unexpected_schema")
+    if not isinstance(description, str) or not description.strip():
+        raise StatusPayloadError("unexpected_schema")
+    return indicator, description
+
+
 def main():
     run_id = str(uuid.uuid4())
     started = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -20,9 +47,23 @@ def main():
             req = urllib.request.Request(url, headers={"User-Agent": "Pryntor-Operations-Watch/0.1"})
             with urllib.request.urlopen(req, timeout=8) as response:
                 raw = response.read(65536)
-                data = json.loads(raw)
-                item.update(http_status=response.status, indicator=data.get("status", {}).get("indicator", "unknown"), description=data.get("status", {}).get("description", "unknown"), evidence_type="provider_status_api")
-        except (urllib.error.URLError, TimeoutError, ValueError, OSError) as exc:
+                try:
+                    indicator, description = parse_status_payload(raw)
+                except StatusPayloadError as exc:
+                    item.update(
+                        http_status=response.status,
+                        indicator="unverified",
+                        error=exc.code,
+                        evidence_type="invalid_provider_payload",
+                    )
+                else:
+                    item.update(
+                        http_status=response.status,
+                        indicator=indicator,
+                        description=description,
+                        evidence_type="provider_status_api",
+                    )
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
             item.update(indicator="unverified", error=type(exc).__name__, evidence_type="failed_request")
         findings.append(item)
     result = {
