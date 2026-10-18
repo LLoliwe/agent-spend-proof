@@ -4,7 +4,9 @@ import pathlib
 import unittest
 
 
-MODULE_PATH = pathlib.Path(__file__).with_name("worker.py")
+MODULE_PATH = pathlib.Path(__file__).parents[1] / "pryntor-ops" / "worker.py"
+if not MODULE_PATH.exists():
+    MODULE_PATH = pathlib.Path(__file__).with_name("worker.py")
 SPEC = importlib.util.spec_from_file_location("pryntor_ops_worker", MODULE_PATH)
 worker = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(worker)
