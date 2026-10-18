@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "niche": "synthetic-agent-action-contract",
+  "environment": "fictional-offline-fixture",
+  "independent_reviewed": false,
+  "records": [
+    {"provider":"fictional-a","task_id":"permissioned-read","trial":1,"mode":"local_simulation","outcome":"success","latency_ms":11,"cost_usd":"0.00","evidence_ref":"fixture:001"},
+    {"provider":"fictional-a","task_id":"permissioned-read","trial":2,"mode":"local_simulation","outcome":"failure","latency_ms":16,"cost_usd":null,"evidence_ref":"fixture:002"},
+    {"provider":"fictional-b","task_id":"permissioned-read","trial":1,"mode":"local_simulation","outcome":"success","latency_ms":13,"cost_usd":"0.00","evidence_ref":"fixture:003"},
+    {"provider":"fictional-b","task_id":"permissioned-read","trial":2,"mode":"local_simulation","outcome":"abstain","latency_ms":null,"cost_usd":null,"evidence_ref":"fixture:004"}
+  ]
+}
