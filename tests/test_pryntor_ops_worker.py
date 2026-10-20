@@ -21,6 +21,20 @@ class StatusPayloadTests(unittest.TestCase):
         raw = json.dumps({"status": {"indicator": "none", "description": "All Systems Operational"}}).encode()
         self.assertEqual(worker.parse_status_payload(raw), ("none", "All Systems Operational"))
 
+    def test_accepts_each_canonical_indicator(self):
+        for indicator in sorted(worker.VALID_STATUS_INDICATORS):
+            with self.subTest(indicator=indicator):
+                raw = json.dumps({
+                    "status": {
+                        "indicator": indicator,
+                        "description": "Provider supplied status",
+                    }
+                }).encode()
+                self.assertEqual(
+                    worker.parse_status_payload(raw),
+                    (indicator, "Provider supplied status"),
+                )
+
     def test_rejects_non_json_body(self):
         with self.assertRaisesRegex(worker.StatusPayloadError, "invalid_json"):
             worker.parse_status_payload(b"<html>not a status api</html>")
@@ -38,6 +52,44 @@ class StatusPayloadTests(unittest.TestCase):
         raw = json.dumps({"status": {"indicator": "none", "description": None}}).encode()
         with self.assertRaisesRegex(worker.StatusPayloadError, "unexpected_schema"):
             worker.parse_status_payload(raw)
+
+    def test_rejects_unknown_indicator(self):
+        raw = json.dumps({
+            "status": {
+                "indicator": "operational-ish",
+                "description": "All Systems Operational",
+            }
+        }).encode()
+        with self.assertRaisesRegex(worker.StatusPayloadError, "unsupported_indicator"):
+            worker.parse_status_payload(raw)
+
+    def test_rejects_noncanonical_indicator_case_or_padding(self):
+        for indicator in ("None", " none ", "MAJOR"):
+            with self.subTest(indicator=indicator):
+                raw = json.dumps({
+                    "status": {
+                        "indicator": indicator,
+                        "description": "All Systems Operational",
+                    }
+                }).encode()
+                with self.assertRaisesRegex(worker.StatusPayloadError, "unsupported_indicator"):
+                    worker.parse_status_payload(raw)
+
+    def test_records_unknown_indicator_as_unverified(self):
+        raw = json.dumps({
+            "status": {
+                "indicator": "green",
+                "description": "All Systems Operational",
+            }
+        }).encode()
+        item = {}
+        worker.record_response(item, FakeResponse(raw))
+        self.assertEqual(item, {
+            "http_status": 200,
+            "indicator": "unverified",
+            "error": "unsupported_indicator",
+            "evidence_type": "invalid_provider_payload",
+        })
 
     def test_rejects_oversized_body_before_json_parse(self):
         response = FakeResponse(b"{" + b" " * worker.MAX_PROVIDER_BODY_BYTES)
@@ -82,3 +134,5 @@ class StatusPayloadTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

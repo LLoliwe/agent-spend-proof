@@ -11,6 +11,7 @@ SOURCES = [
  ("railway_status", "https://status.railway.com/api/v2/status.json"),
 ]
 MAX_PROVIDER_BODY_BYTES = 65536
+VALID_STATUS_INDICATORS = frozenset({"none", "minor", "major", "critical"})
 
 
 class StatusPayloadError(ValueError):
@@ -43,6 +44,8 @@ def parse_status_payload(raw):
         raise StatusPayloadError("unexpected_schema")
     if not isinstance(description, str) or not description.strip():
         raise StatusPayloadError("unexpected_schema")
+    if indicator not in VALID_STATUS_INDICATORS:
+        raise StatusPayloadError("unsupported_indicator")
     return indicator, description
 
 
@@ -98,3 +101,5 @@ def main():
     (output / "run.json").write_text(json.dumps(result, indent=2)+"\n", encoding="utf-8")
     print(json.dumps({"run_id":run_id,"sources":len(findings),"indicators":{i["source"]:i["indicator"] for i in findings},"output":str(output / "run.json")}))
 if __name__ == "__main__": main()
+
+
