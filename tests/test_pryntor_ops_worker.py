@@ -7,8 +7,6 @@ import urllib.error
 
 
 MODULE_PATH = pathlib.Path(__file__).parents[1] / "pryntor-ops" / "worker.py"
-if not MODULE_PATH.exists():
-    MODULE_PATH = pathlib.Path(__file__).with_name("worker.py")
 SPEC = importlib.util.spec_from_file_location("pryntor_ops_worker", MODULE_PATH)
 worker = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(worker)
@@ -55,7 +53,21 @@ class StatusPayloadTests(unittest.TestCase):
         self.assertEqual(item, {
             "http_status": 404,
             "indicator": "unverified",
-            "error": "invalid_json",
+            "error": "http_error",
+            "evidence_type": "invalid_provider_payload",
+        })
+
+    def test_rejects_valid_looking_non_2xx_response(self):
+        raw = json.dumps({"status": {"indicator": "none", "description": "All Systems Operational"}}).encode()
+        response = urllib.error.HTTPError(
+            "https://status.example/api", 503, "Unavailable", {}, io.BytesIO(raw)
+        )
+        item = {}
+        worker.record_response(item, response)
+        self.assertEqual(item, {
+            "http_status": 503,
+            "indicator": "unverified",
+            "error": "http_error",
             "evidence_type": "invalid_provider_payload",
         })
 
