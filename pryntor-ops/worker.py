@@ -10,6 +10,7 @@ SOURCES = [
  ("cloudflare_status", "https://www.cloudflarestatus.com/api/v2/status.json"),
  ("railway_status", "https://status.railway.com/api/v2/status.json"),
 ]
+MAX_PROVIDER_BODY_BYTES = 65536
 
 
 class StatusPayloadError(ValueError):
@@ -18,6 +19,14 @@ class StatusPayloadError(ValueError):
     def __init__(self, code):
         super().__init__(code)
         self.code = code
+
+
+def read_bounded_body(response):
+    """Read at most the configured provider body limit and detect truncation."""
+    raw = response.read(MAX_PROVIDER_BODY_BYTES + 1)
+    if len(raw) > MAX_PROVIDER_BODY_BYTES:
+        raise StatusPayloadError("oversized_body")
+    return raw
 
 
 def parse_status_payload(raw):
@@ -37,6 +46,27 @@ def parse_status_payload(raw):
     return indicator, description
 
 
+def record_response(item, response):
+    """Record a provider response without treating malformed bodies as transport failures."""
+    try:
+        raw = read_bounded_body(response)
+        indicator, description = parse_status_payload(raw)
+    except StatusPayloadError as exc:
+        item.update(
+            http_status=response.status,
+            indicator="unverified",
+            error=exc.code,
+            evidence_type="invalid_provider_payload",
+        )
+    else:
+        item.update(
+            http_status=response.status,
+            indicator=indicator,
+            description=description,
+            evidence_type="provider_status_api",
+        )
+
+
 def main():
     run_id = str(uuid.uuid4())
     started = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -45,24 +75,11 @@ def main():
         item = {"source": name, "url": url, "checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat()}
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "Pryntor-Operations-Watch/0.1"})
-            with urllib.request.urlopen(req, timeout=8) as response:
-                raw = response.read(65536)
-                try:
-                    indicator, description = parse_status_payload(raw)
-                except StatusPayloadError as exc:
-                    item.update(
-                        http_status=response.status,
-                        indicator="unverified",
-                        error=exc.code,
-                        evidence_type="invalid_provider_payload",
-                    )
-                else:
-                    item.update(
-                        http_status=response.status,
-                        indicator=indicator,
-                        description=description,
-                        evidence_type="provider_status_api",
-                    )
+            try:
+                with urllib.request.urlopen(req, timeout=8) as response:
+                    record_response(item, response)
+            except urllib.error.HTTPError as response:
+                record_response(item, response)
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             item.update(indicator="unverified", error=type(exc).__name__, evidence_type="failed_request")
         findings.append(item)
