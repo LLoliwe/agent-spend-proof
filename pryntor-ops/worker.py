@@ -50,6 +50,8 @@ def record_response(item, response):
     """Record a provider response without treating malformed bodies as transport failures."""
     try:
         raw = read_bounded_body(response)
+        if not 200 <= response.status < 300:
+            raise StatusPayloadError("http_error")
         indicator, description = parse_status_payload(raw)
     except StatusPayloadError as exc:
         item.update(
