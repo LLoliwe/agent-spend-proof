@@ -12,8 +12,18 @@ worker = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(worker)
 
 
+STATUS_URL = "https://status.example/api"
+
+
 class FakeResponse(io.BytesIO):
     status = 200
+
+    def __init__(self, body, url=STATUS_URL):
+        super().__init__(body)
+        self.url = url
+
+    def geturl(self):
+        return self.url
 
 
 class StatusPayloadTests(unittest.TestCase):
@@ -83,9 +93,10 @@ class StatusPayloadTests(unittest.TestCase):
             }
         }).encode()
         item = {}
-        worker.record_response(item, FakeResponse(raw))
+        worker.record_response(item, FakeResponse(raw), STATUS_URL)
         self.assertEqual(item, {
             "http_status": 200,
+            "response_origin": "https://status.example",
             "indicator": "unverified",
             "error": "unsupported_indicator",
             "evidence_type": "invalid_provider_payload",
@@ -98,12 +109,13 @@ class StatusPayloadTests(unittest.TestCase):
 
     def test_records_http_status_for_invalid_error_response(self):
         response = urllib.error.HTTPError(
-            "https://status.example/api", 404, "Not Found", {}, io.BytesIO(b"<html>not json</html>")
+            STATUS_URL, 404, "Not Found", {}, io.BytesIO(b"<html>not json</html>")
         )
         item = {}
-        worker.record_response(item, response)
+        worker.record_response(item, response, STATUS_URL)
         self.assertEqual(item, {
             "http_status": 404,
+            "response_origin": "https://status.example",
             "indicator": "unverified",
             "error": "http_error",
             "evidence_type": "invalid_provider_payload",
@@ -112,12 +124,13 @@ class StatusPayloadTests(unittest.TestCase):
     def test_rejects_valid_looking_non_2xx_response(self):
         raw = json.dumps({"status": {"indicator": "none", "description": "All Systems Operational"}}).encode()
         response = urllib.error.HTTPError(
-            "https://status.example/api", 503, "Unavailable", {}, io.BytesIO(raw)
+            STATUS_URL, 503, "Unavailable", {}, io.BytesIO(raw)
         )
         item = {}
-        worker.record_response(item, response)
+        worker.record_response(item, response, STATUS_URL)
         self.assertEqual(item, {
             "http_status": 503,
+            "response_origin": "https://status.example",
             "indicator": "unverified",
             "error": "http_error",
             "evidence_type": "invalid_provider_payload",
@@ -125,11 +138,49 @@ class StatusPayloadTests(unittest.TestCase):
 
     def test_records_oversized_provider_body(self):
         item = {}
-        worker.record_response(item, FakeResponse(b"x" * (worker.MAX_PROVIDER_BODY_BYTES + 1)))
+        worker.record_response(item, FakeResponse(b"x" * (worker.MAX_PROVIDER_BODY_BYTES + 1)), STATUS_URL)
         self.assertEqual(item["http_status"], 200)
         self.assertEqual(item["indicator"], "unverified")
         self.assertEqual(item["error"], "oversized_body")
         self.assertEqual(item["evidence_type"], "invalid_provider_payload")
+
+    def test_accepts_same_origin_redirect_path(self):
+        raw = json.dumps({"status": {"indicator": "none", "description": "Operational"}}).encode()
+        item = {}
+        worker.record_response(item, FakeResponse(raw, "https://status.example/v2/status.json"), STATUS_URL)
+        self.assertEqual(item["indicator"], "none")
+        self.assertEqual(item["response_origin"], "https://status.example")
+
+    def test_rejects_cross_origin_valid_looking_payload_without_reading_it(self):
+        raw = json.dumps({"status": {"indicator": "none", "description": "Operational"}}).encode()
+        response = FakeResponse(raw, "https://attacker.example/status.json")
+        item = {}
+        worker.record_response(item, response, STATUS_URL)
+        self.assertEqual(item, {
+            "http_status": 200,
+            "response_origin": "unverified",
+            "indicator": "unverified",
+            "error": "unexpected_origin",
+            "evidence_type": "invalid_provider_provenance",
+        })
+        self.assertEqual(response.tell(), 0)
+
+    def test_rejects_https_downgrade(self):
+        raw = json.dumps({"status": {"indicator": "none", "description": "Operational"}}).encode()
+        item = {}
+        worker.record_response(item, FakeResponse(raw, "http://status.example/api"), STATUS_URL)
+        self.assertEqual(item["error"], "unexpected_origin")
+        self.assertEqual(item["evidence_type"], "invalid_provider_provenance")
+
+    def test_rejects_userinfo_and_nondefault_port(self):
+        for url in (
+            "https://status.example@attacker.example/api",
+            "https://status.example:444/api",
+        ):
+            with self.subTest(url=url):
+                item = {}
+                worker.record_response(item, FakeResponse(b"{}", url), STATUS_URL)
+                self.assertEqual(item["error"], "unexpected_origin")
 
 
 if __name__ == "__main__":
