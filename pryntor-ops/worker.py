@@ -40,6 +40,27 @@ def canonical_https_origin(url):
     return parsed.hostname.lower(), port
 
 
+class SameOriginHTTPSRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Block unsafe redirects before urllib sends a follow-up request."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        try:
+            expected = canonical_https_origin(req.full_url)
+            observed = canonical_https_origin(newurl)
+        except StatusPayloadError as exc:
+            raise urllib.error.HTTPError(
+                newurl, code, "Blocked unsafe redirect", headers, fp
+            ) from exc
+        if observed != expected:
+            raise urllib.error.HTTPError(
+                newurl, code, "Blocked cross-origin redirect", headers, fp
+            )
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+STATUS_OPENER = urllib.request.build_opener(SameOriginHTTPSRedirectHandler())
+
+
 def validate_response_origin(response, expected_url):
     """Reject redirects that leave the configured provider's HTTPS origin."""
     try:
@@ -119,7 +140,7 @@ def main():
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "Pryntor-Operations-Watch/0.1"})
             try:
-                with urllib.request.urlopen(req, timeout=8) as response:
+                with STATUS_OPENER.open(req, timeout=8) as response:
                     record_response(item, response, url)
             except urllib.error.HTTPError as response:
                 record_response(item, response, url)
