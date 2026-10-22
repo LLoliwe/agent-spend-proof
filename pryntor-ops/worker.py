@@ -4,6 +4,7 @@ No LLM inference, paid API, secrets, external writes, or private company content
 """
 import datetime, json, os, urllib.request, urllib.error, uuid
 from pathlib import Path
+from urllib.parse import urlsplit
 
 SOURCES = [
  ("github_status", "https://www.githubstatus.com/api/v2/status.json"),
@@ -20,6 +21,35 @@ class StatusPayloadError(ValueError):
     def __init__(self, code):
         super().__init__(code)
         self.code = code
+
+
+def canonical_https_origin(url):
+    """Return a stable HTTPS origin tuple or fail closed."""
+    try:
+        parsed = urlsplit(url)
+        port = parsed.port or 443
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise StatusPayloadError("unexpected_origin") from exc
+    if (
+        parsed.scheme.lower() != "https"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        raise StatusPayloadError("unexpected_origin")
+    return parsed.hostname.lower(), port
+
+
+def validate_response_origin(response, expected_url):
+    """Reject redirects that leave the configured provider's HTTPS origin."""
+    try:
+        response_url = response.geturl()
+    except (AttributeError, TypeError) as exc:
+        raise StatusPayloadError("unexpected_origin") from exc
+    observed = canonical_https_origin(response_url)
+    if observed != canonical_https_origin(expected_url):
+        raise StatusPayloadError("unexpected_origin")
+    return f"https://{observed[0]}" + ("" if observed[1] == 443 else f":{observed[1]}")
 
 
 def read_bounded_body(response):
@@ -49,9 +79,11 @@ def parse_status_payload(raw):
     return indicator, description
 
 
-def record_response(item, response):
-    """Record a provider response without treating malformed bodies as transport failures."""
+def record_response(item, response, expected_url):
+    """Record a provider response without trusting redirected evidence."""
+    response_origin = "unverified"
     try:
+        response_origin = validate_response_origin(response, expected_url)
         raw = read_bounded_body(response)
         if not 200 <= response.status < 300:
             raise StatusPayloadError("http_error")
@@ -59,13 +91,19 @@ def record_response(item, response):
     except StatusPayloadError as exc:
         item.update(
             http_status=response.status,
+            response_origin=response_origin,
             indicator="unverified",
             error=exc.code,
-            evidence_type="invalid_provider_payload",
+            evidence_type=(
+                "invalid_provider_provenance"
+                if exc.code == "unexpected_origin"
+                else "invalid_provider_payload"
+            ),
         )
     else:
         item.update(
             http_status=response.status,
+            response_origin=response_origin,
             indicator=indicator,
             description=description,
             evidence_type="provider_status_api",
@@ -82,9 +120,9 @@ def main():
             req = urllib.request.Request(url, headers={"User-Agent": "Pryntor-Operations-Watch/0.1"})
             try:
                 with urllib.request.urlopen(req, timeout=8) as response:
-                    record_response(item, response)
+                    record_response(item, response, url)
             except urllib.error.HTTPError as response:
-                record_response(item, response)
+                record_response(item, response, url)
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             item.update(indicator="unverified", error=type(exc).__name__, evidence_type="failed_request")
         findings.append(item)
