@@ -4,6 +4,7 @@ import json
 import pathlib
 import unittest
 import urllib.error
+import urllib.request
 
 
 MODULE_PATH = pathlib.Path(__file__).parents[1] / "pryntor-ops" / "worker.py"
@@ -150,6 +151,33 @@ class StatusPayloadTests(unittest.TestCase):
         worker.record_response(item, FakeResponse(raw, "https://status.example/v2/status.json"), STATUS_URL)
         self.assertEqual(item["indicator"], "none")
         self.assertEqual(item["response_origin"], "https://status.example")
+
+    def test_redirect_handler_allows_same_origin_https_path(self):
+        request = urllib.request.Request(STATUS_URL)
+        redirected = worker.SameOriginHTTPSRedirectHandler().redirect_request(
+            request,
+            io.BytesIO(),
+            302,
+            "Found",
+            {},
+            "https://status.example/v2/status.json",
+        )
+        self.assertEqual(redirected.full_url, "https://status.example/v2/status.json")
+
+    def test_redirect_handler_blocks_unsafe_follow_up_requests(self):
+        request = urllib.request.Request(STATUS_URL)
+        for target in (
+            "https://attacker.example/status.json",
+            "http://status.example/status.json",
+            "https://status.example:444/status.json",
+            "https://user:pass@status.example/status.json",
+        ):
+            with self.subTest(target=target):
+                with self.assertRaises(urllib.error.HTTPError) as caught:
+                    worker.SameOriginHTTPSRedirectHandler().redirect_request(
+                        request, io.BytesIO(), 302, "Found", {}, target
+                    )
+                self.assertEqual(caught.exception.code, 302)
 
     def test_rejects_cross_origin_valid_looking_payload_without_reading_it(self):
         raw = json.dumps({"status": {"indicator": "none", "description": "Operational"}}).encode()
