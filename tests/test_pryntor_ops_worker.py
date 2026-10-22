@@ -82,6 +82,29 @@ class StatusPayloadTests(unittest.TestCase):
         with self.assertRaisesRegex(worker.StatusPayloadError, "unsupported_indicator"):
             worker.parse_status_payload(raw)
 
+    def test_rejects_duplicate_indicator_that_would_hide_a_critical_status(self):
+        raw = (
+            b'{"status":{"indicator":"critical","indicator":"none",'
+            b'"description":"All Systems Operational"}}'
+        )
+        with self.assertRaisesRegex(worker.StatusPayloadError, "duplicate_field"):
+            worker.parse_status_payload(raw)
+
+    def test_records_duplicate_status_object_as_unverified(self):
+        raw = (
+            b'{"status":{"indicator":"critical","description":"Outage"},'
+            b'"status":{"indicator":"none","description":"Operational"}}'
+        )
+        item = {}
+        worker.record_response(item, FakeResponse(raw), STATUS_URL)
+        self.assertEqual(item, {
+            "http_status": 200,
+            "response_origin": "https://status.example",
+            "indicator": "unverified",
+            "error": "duplicate_field",
+            "evidence_type": "invalid_provider_payload",
+        })
+
     def test_rejects_noncanonical_indicator_case_or_padding(self):
         for indicator in ("None", " none ", "MAJOR"):
             with self.subTest(indicator=indicator):
@@ -284,6 +307,7 @@ class EvidenceWriteTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 

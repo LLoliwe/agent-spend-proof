@@ -23,6 +23,16 @@ class StatusPayloadError(ValueError):
         self.code = code
 
 
+def reject_duplicate_fields(pairs):
+    """Build a JSON object while rejecting ambiguous duplicate field names."""
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise StatusPayloadError("duplicate_field")
+        result[key] = value
+    return result
+
+
 def canonical_https_origin(url):
     """Return a stable HTTPS origin tuple or fail closed."""
     try:
@@ -84,7 +94,7 @@ def read_bounded_body(response):
 def parse_status_payload(raw):
     """Return validated Statuspage-style fields or fail with a stable code."""
     try:
-        data = json.loads(raw)
+        data = json.loads(raw, object_pairs_hook=reject_duplicate_fields)
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise StatusPayloadError("invalid_json") from exc
     if not isinstance(data, dict) or not isinstance(data.get("status"), dict):
@@ -176,6 +186,7 @@ def main():
     write_json_atomic(output / "run.json", result)
     print(json.dumps({"run_id":run_id,"sources":len(findings),"indicators":{i["source"]:i["indicator"] for i in findings},"output":str(output / "run.json")}))
 if __name__ == "__main__": main()
+
 
 
 
