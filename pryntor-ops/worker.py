@@ -95,7 +95,7 @@ def parse_status_payload(raw):
     """Return validated Statuspage-style fields or fail with a stable code."""
     try:
         data = json.loads(raw, object_pairs_hook=reject_duplicate_fields)
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+    except (json.JSONDecodeError, UnicodeDecodeError, RecursionError) as exc:
         raise StatusPayloadError("invalid_json") from exc
     if not isinstance(data, dict) or not isinstance(data.get("status"), dict):
         raise StatusPayloadError("unexpected_schema")
@@ -186,6 +186,7 @@ def main():
     write_json_atomic(output / "run.json", result)
     print(json.dumps({"run_id":run_id,"sources":len(findings),"indicators":{i["source"]:i["indicator"] for i in findings},"output":str(output / "run.json")}))
 if __name__ == "__main__": main()
+
 
 
 

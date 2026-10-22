@@ -58,6 +58,39 @@ class StatusPayloadTests(unittest.TestCase):
         with self.assertRaisesRegex(worker.StatusPayloadError, "invalid_json"):
             worker.parse_status_payload(b"<html>not a status api</html>")
 
+    def test_nested_json_bomb_fails_closed_without_losing_later_evidence(self):
+        nested = b'{"status":' + b'[' * 16000 + b'0' + b']' * 16000 + b'}'
+        self.assertLess(len(nested), worker.MAX_PROVIDER_BODY_BYTES)
+        healthy = json.dumps({
+            "status": {
+                "indicator": "none",
+                "description": "Operational",
+            }
+        }).encode()
+        with tempfile.TemporaryDirectory() as directory:
+            with mock.patch.object(worker, "SOURCES", (
+                ("nested", "https://status.example/nested"),
+                ("healthy", "https://status.example/healthy"),
+            )):
+                with mock.patch.object(
+                    worker.STATUS_OPENER,
+                    "open",
+                    side_effect=(
+                        FakeResponse(nested, "https://status.example/nested"),
+                        FakeResponse(healthy, "https://status.example/healthy"),
+                    ),
+                ):
+                    with mock.patch.dict("os.environ", {"GITHUB_WORKSPACE": directory}):
+                        worker.main()
+
+            result = json.loads(
+                (pathlib.Path(directory) / "pryntor-ops-output" / "run.json")
+                .read_text(encoding="utf-8")
+            )
+            self.assertEqual(result["findings"][0]["indicator"], "unverified")
+            self.assertEqual(result["findings"][0]["error"], "invalid_json")
+            self.assertEqual(result["findings"][1]["indicator"], "none")
+
     def test_rejects_missing_status_object(self):
         with self.assertRaisesRegex(worker.StatusPayloadError, "unexpected_schema"):
             worker.parse_status_payload(b'{"message":"not found"}')
@@ -307,6 +340,7 @@ class EvidenceWriteTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 
