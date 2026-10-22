@@ -1,0 +1,34 @@
+[
+  {
+    "provider": "Runpod",
+    "gpu": "RTX A5000 24 GB Secure, official published guide",
+    "gpu_only_usd_per_hour": "0.27",
+    "observed_date": "2026-10-17",
+    "rate_class": "PUBLIC_ADVERTISED_NOT_CHECKOUT",
+    "source_url": "https://www.runpod.io/articles/guides/ai-server-cost"
+  },
+  {
+    "provider": "Runpod",
+    "gpu": "RTX 3090 24 GB Secure, official published guide",
+    "gpu_only_usd_per_hour": "0.50",
+    "observed_date": "2026-10-17",
+    "rate_class": "PUBLIC_ADVERTISED_NOT_CHECKOUT",
+    "source_url": "https://www.runpod.io/articles/guides/ai-server-cost"
+  },
+  {
+    "provider": "Runpod",
+    "gpu": "RTX 4090 24 GB Secure, official published guide",
+    "gpu_only_usd_per_hour": "0.89",
+    "observed_date": "2026-10-17",
+    "rate_class": "PUBLIC_ADVERTISED_NOT_CHECKOUT",
+    "source_url": "https://www.runpod.io/articles/guides/ai-server-cost"
+  },
+  {
+    "provider": "Modal",
+    "gpu": "A10 24 GB according to official notebooks, 0.000306 USD/sec official rate",
+    "gpu_only_usd_per_hour": "1.1016",
+    "observed_date": "2026-10-17",
+    "rate_class": "PUBLIC_ADVERTISED_NOT_CHECKOUT",
+    "source_url": "https://modal.com/pricing"
+  }
+]

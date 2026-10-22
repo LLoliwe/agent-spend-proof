@@ -1,0 +1,32 @@
+name: Pryntor framework installation verification
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [langgraph, crewai, microsoft, openhands]
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install isolated framework dependencies
+        shell: bash
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --disable-pip-version-check --no-input --timeout 20 --retries 1 -U pip
+          case '${{ matrix.framework }}' in
+            langgraph) PACKAGE='langgraph' ;;
+            crewai) PACKAGE='crewai' ;;
+            microsoft) PACKAGE='agent-framework-core' ;;
+            openhands) PACKAGE='openhands' ;;
+          esac
+          .venv/bin/python -m pip install --disable-pip-version-check --no-input --timeout 20 --retries 1 "$PACKAGE"
+      - name: Verify actual installed package
+        run: .venv/bin/python pryntor-ops/frameworks/verify_frameworks.py '${{ matrix.framework }}'
