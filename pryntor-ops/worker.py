@@ -131,6 +131,22 @@ def record_response(item, response, expected_url):
         )
 
 
+def write_json_atomic(path, payload):
+    """Replace a completed JSON artifact atomically or preserve the prior one."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        with temporary.open("x", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def main():
     run_id = str(uuid.uuid4())
     started = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -157,8 +173,9 @@ def main():
     }
     output = Path(os.environ.get("GITHUB_WORKSPACE", ".")) / "pryntor-ops-output"
     output.mkdir(parents=True, exist_ok=True)
-    (output / "run.json").write_text(json.dumps(result, indent=2)+"\n", encoding="utf-8")
+    write_json_atomic(output / "run.json", result)
     print(json.dumps({"run_id":run_id,"sources":len(findings),"indicators":{i["source"]:i["indicator"] for i in findings},"output":str(output / "run.json")}))
 if __name__ == "__main__": main()
+
 
 

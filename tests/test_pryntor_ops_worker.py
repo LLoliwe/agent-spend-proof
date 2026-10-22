@@ -2,9 +2,11 @@ import importlib.util
 import io
 import json
 import pathlib
+import tempfile
 import unittest
 import urllib.error
 import urllib.request
+from unittest import mock
 
 
 MODULE_PATH = pathlib.Path(__file__).parents[1] / "pryntor-ops" / "worker.py"
@@ -211,7 +213,39 @@ class StatusPayloadTests(unittest.TestCase):
                 self.assertEqual(item["error"], "unexpected_origin")
 
 
+class EvidenceWriteTests(unittest.TestCase):
+    def test_atomic_write_replaces_complete_artifact_and_leaves_no_temp_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "run.json"
+            path.write_text('{"stale": true}\n', encoding="utf-8")
+
+            worker.write_json_atomic(path, {"complete": True, "findings": []})
+
+            self.assertEqual(
+                json.loads(path.read_text(encoding="utf-8")),
+                {"complete": True, "findings": []},
+            )
+            self.assertEqual(list(path.parent.glob(".run.json.*.tmp")), [])
+
+    def test_interrupted_serialization_preserves_previous_complete_artifact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "run.json"
+            previous = '{"complete": true, "run_id": "previous"}\n'
+            path.write_text(previous, encoding="utf-8")
+
+            def interrupt(_payload, handle, **_kwargs):
+                handle.write('{"complete":')
+                raise RuntimeError("simulated interruption")
+
+            with mock.patch.object(worker.json, "dump", side_effect=interrupt):
+                with self.assertRaisesRegex(RuntimeError, "simulated interruption"):
+                    worker.write_json_atomic(path, {"complete": True})
+
+            self.assertEqual(path.read_text(encoding="utf-8"), previous)
+            self.assertEqual(list(path.parent.glob(".run.json.*.tmp")), [])
+
 if __name__ == "__main__":
     unittest.main()
+
 
 
