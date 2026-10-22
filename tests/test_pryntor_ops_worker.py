@@ -1,4 +1,5 @@
 import importlib.util
+import http.client
 import io
 import json
 import pathlib
@@ -27,6 +28,11 @@ class FakeResponse(io.BytesIO):
 
     def geturl(self):
         return self.url
+
+
+class TruncatedResponse(FakeResponse):
+    def read(self, _size=-1):
+        raise http.client.IncompleteRead(b'{"status":', 100)
 
 
 class StatusPayloadTests(unittest.TestCase):
@@ -211,6 +217,38 @@ class StatusPayloadTests(unittest.TestCase):
                 item = {}
                 worker.record_response(item, FakeResponse(b"{}", url), STATUS_URL)
                 self.assertEqual(item["error"], "unexpected_origin")
+
+
+    def test_truncated_response_does_not_abort_other_provider_evidence(self):
+        healthy = json.dumps({
+            "status": {
+                "indicator": "none",
+                "description": "Operational",
+            }
+        }).encode()
+        with tempfile.TemporaryDirectory() as directory:
+            with mock.patch.object(worker, "SOURCES", (
+                ("truncated", "https://status.example/truncated"),
+                ("healthy", "https://status.example/healthy"),
+            )):
+                with mock.patch.object(
+                    worker.STATUS_OPENER,
+                    "open",
+                    side_effect=(
+                        TruncatedResponse(b"", "https://status.example/truncated"),
+                        FakeResponse(healthy, "https://status.example/healthy"),
+                    ),
+                ):
+                    with mock.patch.dict("os.environ", {"GITHUB_WORKSPACE": directory}):
+                        worker.main()
+
+            result = json.loads(
+                (pathlib.Path(directory) / "pryntor-ops-output" / "run.json")
+                .read_text(encoding="utf-8")
+            )
+            self.assertEqual(result["findings"][0]["indicator"], "unverified")
+            self.assertEqual(result["findings"][0]["error"], "IncompleteRead")
+            self.assertEqual(result["findings"][1]["indicator"], "none")
 
 
 class EvidenceWriteTests(unittest.TestCase):

@@ -2,7 +2,7 @@
 """Bounded, credential-free Pryntor public-source monitoring worker.
 No LLM inference, paid API, secrets, external writes, or private company content.
 """
-import datetime, json, os, urllib.request, urllib.error, uuid
+import datetime, http.client, json, os, urllib.request, urllib.error, uuid
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -160,7 +160,7 @@ def main():
                     record_response(item, response, url)
             except urllib.error.HTTPError as response:
                 record_response(item, response, url)
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        except (urllib.error.URLError, http.client.HTTPException, TimeoutError, OSError) as exc:
             item.update(indicator="unverified", error=type(exc).__name__, evidence_type="failed_request")
         findings.append(item)
     result = {
