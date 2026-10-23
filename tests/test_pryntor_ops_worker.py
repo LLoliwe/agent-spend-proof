@@ -23,12 +23,21 @@ STATUS_URL = "https://status.example/api"
 class FakeResponse(io.BytesIO):
     status = 200
 
-    def __init__(self, body, url=STATUS_URL):
+    def __init__(self, body, url=STATUS_URL, media_type="application/json"):
         super().__init__(body)
         self.url = url
+        self.headers = FakeHeaders(media_type)
 
     def geturl(self):
         return self.url
+
+
+class FakeHeaders:
+    def __init__(self, media_type):
+        self.media_type = media_type
+
+    def get_content_type(self):
+        return self.media_type
 
 
 class TruncatedResponse(FakeResponse):
@@ -229,6 +238,43 @@ class StatusPayloadTests(unittest.TestCase):
             "error": "unsupported_indicator",
             "evidence_type": "invalid_provider_payload",
         })
+
+    def test_rejects_valid_status_json_with_untrusted_media_type(self):
+        raw = json.dumps({
+            "status": {
+                "indicator": "none",
+                "description": "All Systems Operational",
+            }
+        }).encode()
+        item = {}
+        worker.record_response(
+            item,
+            FakeResponse(raw, media_type="text/html"),
+            STATUS_URL,
+        )
+        self.assertEqual(item, {
+            "http_status": 200,
+            "response_origin": "https://status.example",
+            "indicator": "unverified",
+            "error": "unexpected_media_type",
+            "evidence_type": "invalid_provider_payload",
+        })
+
+    def test_accepts_structured_json_media_type(self):
+        raw = json.dumps({
+            "status": {
+                "indicator": "none",
+                "description": "All Systems Operational",
+            }
+        }).encode()
+        item = {}
+        worker.record_response(
+            item,
+            FakeResponse(raw, media_type="application/status+json"),
+            STATUS_URL,
+        )
+        self.assertEqual(item["indicator"], "none")
+        self.assertEqual(item["evidence_type"], "provider_status_api")
 
     def test_rejects_oversized_body_before_json_parse(self):
         response = FakeResponse(b"{" + b" " * worker.MAX_PROVIDER_BODY_BYTES)

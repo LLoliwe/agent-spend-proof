@@ -96,6 +96,16 @@ def read_bounded_body(response):
     return raw
 
 
+def validate_json_media_type(response):
+    """Require an HTTP media type that can support JSON status evidence."""
+    try:
+        media_type = response.headers.get_content_type().lower()
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise StatusPayloadError("unexpected_media_type") from exc
+    if media_type != "application/json" and not media_type.endswith("+json"):
+        raise StatusPayloadError("unexpected_media_type")
+
+
 def parse_status_payload(raw):
     """Return validated Statuspage-style fields or fail with a stable code."""
     try:
@@ -129,6 +139,7 @@ def record_response(item, response, expected_url):
         raw = read_bounded_body(response)
         if not 200 <= response.status < 300:
             raise StatusPayloadError("http_error")
+        validate_json_media_type(response)
         indicator, description = parse_status_payload(raw)
     except StatusPayloadError as exc:
         item.update(
