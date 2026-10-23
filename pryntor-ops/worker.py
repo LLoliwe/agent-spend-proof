@@ -95,7 +95,9 @@ def parse_status_payload(raw):
     """Return validated Statuspage-style fields or fail with a stable code."""
     try:
         data = json.loads(raw, object_pairs_hook=reject_duplicate_fields)
-    except (json.JSONDecodeError, UnicodeDecodeError, RecursionError) as exc:
+    except StatusPayloadError:
+        raise
+    except (UnicodeDecodeError, RecursionError, ValueError) as exc:
         raise StatusPayloadError("invalid_json") from exc
     if not isinstance(data, dict) or not isinstance(data.get("status"), dict):
         raise StatusPayloadError("unexpected_schema")

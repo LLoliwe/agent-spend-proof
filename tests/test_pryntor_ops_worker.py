@@ -3,6 +3,7 @@ import http.client
 import io
 import json
 import pathlib
+import sys
 import tempfile
 import unittest
 import urllib.error
@@ -90,6 +91,55 @@ class StatusPayloadTests(unittest.TestCase):
             self.assertEqual(result["findings"][0]["indicator"], "unverified")
             self.assertEqual(result["findings"][0]["error"], "invalid_json")
             self.assertEqual(result["findings"][1]["indicator"], "none")
+
+    def test_oversized_integer_fails_closed_without_losing_later_evidence(self):
+        oversized_integer = (
+            b'{"status":{"indicator":"none","description":"Operational"},'
+            b'"padding":' + b"9" * 5000 + b"}"
+        )
+        healthy = json.dumps({
+            "status": {
+                "indicator": "none",
+                "description": "Operational",
+            }
+        }).encode()
+        original_limit = sys.get_int_max_str_digits()
+        try:
+            sys.set_int_max_str_digits(4300)
+            with tempfile.TemporaryDirectory() as directory:
+                with mock.patch.object(worker, "SOURCES", (
+                    ("oversized_integer", "https://status.example/integer"),
+                    ("healthy", "https://status.example/healthy"),
+                )):
+                    with mock.patch.object(
+                        worker.STATUS_OPENER,
+                        "open",
+                        side_effect=(
+                            FakeResponse(
+                                oversized_integer,
+                                "https://status.example/integer",
+                            ),
+                            FakeResponse(
+                                healthy,
+                                "https://status.example/healthy",
+                            ),
+                        ),
+                    ):
+                        with mock.patch.dict(
+                            "os.environ", {"GITHUB_WORKSPACE": directory}
+                        ):
+                            worker.main()
+
+                result = json.loads(
+                    (pathlib.Path(directory) / "pryntor-ops-output" / "run.json")
+                    .read_text(encoding="utf-8")
+                )
+        finally:
+            sys.set_int_max_str_digits(original_limit)
+
+        self.assertEqual(result["findings"][0]["indicator"], "unverified")
+        self.assertEqual(result["findings"][0]["error"], "invalid_json")
+        self.assertEqual(result["findings"][1]["indicator"], "none")
 
     def test_rejects_missing_status_object(self):
         with self.assertRaisesRegex(worker.StatusPayloadError, "unexpected_schema"):
