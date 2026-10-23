@@ -33,6 +33,11 @@ def reject_duplicate_fields(pairs):
     return result
 
 
+def reject_nonfinite_constant(_value):
+    """Reject Python's permissive NaN and Infinity JSON extensions."""
+    raise StatusPayloadError("invalid_json")
+
+
 def canonical_https_origin(url):
     """Return a stable HTTPS origin tuple or fail closed."""
     try:
@@ -94,7 +99,11 @@ def read_bounded_body(response):
 def parse_status_payload(raw):
     """Return validated Statuspage-style fields or fail with a stable code."""
     try:
-        data = json.loads(raw, object_pairs_hook=reject_duplicate_fields)
+        data = json.loads(
+            raw,
+            object_pairs_hook=reject_duplicate_fields,
+            parse_constant=reject_nonfinite_constant,
+        )
     except StatusPayloadError:
         raise
     except (UnicodeDecodeError, RecursionError, ValueError) as exc:

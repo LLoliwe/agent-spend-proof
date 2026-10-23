@@ -59,6 +59,19 @@ class StatusPayloadTests(unittest.TestCase):
         with self.assertRaisesRegex(worker.StatusPayloadError, "invalid_json"):
             worker.parse_status_payload(b"<html>not a status api</html>")
 
+    def test_rejects_nonstandard_nonfinite_json_constants(self):
+        for token in (b"NaN", b"Infinity", b"-Infinity"):
+            with self.subTest(token=token):
+                raw = (
+                    b'{"status":{"indicator":"none",'
+                    b'"description":"All Systems Operational"},'
+                    b'"diagnostic":' + token + b"}"
+                )
+                with self.assertRaisesRegex(
+                    worker.StatusPayloadError, "invalid_json"
+                ):
+                    worker.parse_status_payload(raw)
+
     def test_nested_json_bomb_fails_closed_without_losing_later_evidence(self):
         nested = b'{"status":' + b'[' * 16000 + b'0' + b']' * 16000 + b'}'
         self.assertLess(len(nested), worker.MAX_PROVIDER_BODY_BYTES)
