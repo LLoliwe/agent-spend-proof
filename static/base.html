@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Base payment evidence | Agent Spend Proof</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/base.css">
+</head>
+<body>
+<div class="stage">
+  <div class="mode-strip"><span class="dot"></span> READ-ONLY EVIDENCE <span class="mode-arrow">NO WALLET CONNECTED · NO FUNDS MOVE</span></div>
+  <header class="topbar wrap">
+    <a class="brand" href="/" aria-label="Agent Spend Proof home"><span class="logo">P<span>↗</span></span><span class="brand-words">AGENT<br>SPEND PROOF</span></a>
+    <a class="github" href="/">SIMULATION CONSOLE ↗</a>
+  </header>
+  <main class="wrap base-main">
+    <span class="eyebrow">BASE / PAYMENT EVIDENCE</span>
+    <h1>CHECK THE<br><em>PAYMENT.</em></h1>
+    <p class="base-intro">Compare an x402 quote with your allowed network, token, recipient and price. Add a transaction hash to inspect settlement through a fixed Base RPC endpoint.</p>
+    <div class="base-layout">
+      <section class="panel base-input">
+        <div class="panel-heading"><div><span class="kicker">01 / EXPECTATIONS</span><h2>What was allowed?</h2></div></div>
+        <p class="panel-copy">Paste a JSON request below. Your maximum amount uses atomic token units. Mainnet and Sepolia are checked separately.</p>
+        <label for="packet">QUOTE AND OPERATOR EXPECTATIONS</label>
+        <textarea id="packet" spellcheck="false" aria-describedby="packet-help" placeholder="Paste the evidence request JSON"></textarea>
+        <p id="packet-help">The optional tx_hash and payer fields trigger a read-only chain query. Keep wallet keys, signatures and credentials out of this form.</p>
+        <div class="base-buttons"><button id="example" class="secondary" type="button">LOAD SYNTHETIC QUOTE</button><button id="verify" class="primary" type="button">CHECK EVIDENCE ↗</button></div>
+        <p id="sample-notice" class="base-note" hidden>Synthetic example loaded. These addresses and this quote are fixtures. This example performs no network request and proves no real payment or adoption.</p>
+        <div id="notice" role="status" aria-live="polite" class="notice is-hidden"></div>
+      </section>
+      <section class="panel base-result">
+        <div class="panel-heading"><div><span class="kicker">02 / OBSERVATIONS</span><h2>What can be proved?</h2></div></div>
+        <div class="evidence-state"><strong id="result-heading">No evidence checked</strong><p id="result-summary">A successful transfer is only one part of the story. Request correlation, attribution and service delivery require their own evidence.</p></div>
+        <pre id="result" tabindex="0" aria-label="Verification result">The verification result will appear here.</pre>
+        <button id="download" class="secondary" type="button" disabled>DOWNLOAD RESULT JSON</button>
+        <p class="base-note">Builder Code attribution, request correlation and service delivery remain separate checks. This verifier never executes a purchase.</p>
+      </section>
+    </div>
+  </main>
+  <footer class="wrap"><div>AGENT SPEND PROOF / BASE EVIDENCE</div><div>LOCAL PROTOTYPE · 2026</div><div>NO PAYMENT EXECUTION</div></footer>
+</div>
+<script src="/static/base.js"></script>
+</body>
+</html>

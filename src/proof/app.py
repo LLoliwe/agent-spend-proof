@@ -9,11 +9,13 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from .core import Ledger, PolicyError
 from .workflows import creator_brief
+from .base_api import router as base_router
 
 ROOT = Path(__file__).resolve().parents[2]
 app = FastAPI(title="Agent Spend Proof", version="0.1.0", description="Simulation only. No funds move.")
 ledger = Ledger(os.environ.get("PROOF_DB", "./proof.sqlite3"))
 app.mount("/static", StaticFiles(directory=str(ROOT / "static")), name="static")
+app.include_router(base_router)
 
 
 class NewIntent(BaseModel):
@@ -46,6 +48,11 @@ def invoke(fn, *args):
 @app.get("/", include_in_schema=False)
 def home():
     return FileResponse(ROOT / "static" / "index.html")
+
+
+@app.get("/base", include_in_schema=False)
+def base_evidence_console():
+    return FileResponse(ROOT / "static" / "base.html")
 
 
 @app.get("/api/health")

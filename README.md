@@ -45,6 +45,10 @@ curl -X POST http://127.0.0.1:8000/api/intents \
 - No real-money executor is installed. **R50 total live-testing ceiling was approved on 14 October 2026; R0 spent.** No key custody or wallet setup in this service. See [live test gate](docs/LIVE_TEST_GATE.md).
 - Real `buy` integration remains pending an owner-controlled keychain wallet, Loops enrollment/tag and ERC-8004 identity. Do not imply the hackathon is submitted or grant-eligible yet.
 
+## Base evidence workflow (read-only)
+
+Open `/base` in the local app to validate an x402 V2 quote against explicit operator expectations, inspect a supplied Base settlement transaction, and export the observations as JSON. Mainnet and Sepolia are checked separately. No wallet is connected, no payment is executed, and no adoption or grant eligibility is established. See [Base evidence documentation](docs/BASE_EVIDENCE.md) for the precise scope and outstanding request, attribution and delivery evidence.
+
 ## Limits by design
 
 - **No mainnet wallet integration, user authentication, encryption-at-rest, hosted access control, or production-grade reconciliation.** Only run it on `127.0.0.1`, never expose a public mutable demo without adding authentication/rate limiting.
